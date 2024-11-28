@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Password Manager</title>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+  
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyBZJyvFwZCmv6opZsuLobryb728A3G7CRg",
+      authDomain: "password-manager-23609.firebaseapp.com",
+      projectId: "password-manager-23609",
+      storageBucket: "password-manager-23609.appspot.com",
+      messagingSenderId: "629079415018",
+      appId: "1:629079415018:web:a4c6ff54c6801822789f93",
+      measurementId: "G-T9CRGQ2Z39"
+    };
+  
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+  
+    document.addEventListener('DOMContentLoaded', () => {
+      const passwordList = document.getElementById("passwordList");
+      const addPasswordForm = document.getElementById("addPasswordForm");
+      const usernameInput = document.getElementById("username");
+      const passwordInput = document.getElementById("password");
+      const categoryInput = document.getElementById("category");
+      const logoutButton = document.getElementById("logoutButton");
+      const categoryFilter = document.getElementById("categoryFilter");
+  
+      // Check if the user is logged in
+      onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          await populateCategoryDropdown(user.uid); // Populate categories
+          displayPasswords(user.uid); // Display passwords
+        } else {
+          window.location.href = "index.html"; // Redirect to login if not logged in
+        }
+      });
+  
+      // Display passwords for the logged-in user
+      async function displayPasswords(userId, filterCategory = "") {
+        const querySnapshot = await getDocs(collection(db, "users", userId, "passwords"));
+        passwordList.innerHTML = ''; // Clear the password list
+
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            if (filterCategory && data.category !== filterCategory) return; // Skip filtered items
+
+            const listItem = document.createElement("li");
+            listItem.classList.add("password-item");
+            
+            // Password display logic
+            const passwordSpan = document.createElement("span");
+            passwordSpan.textContent = "••••••••";
+            passwordSpan.classList.add("password-mask");
+            passwordSpan.dataset.password = data.password; // Store actual password
+
+            const showButton = document.createElement("a");
+            showButton.textContent = "Show";
+            showButton.href = "#";
+            showButton.classList.add("toggle-password");
+            showButton.addEventListener("click", (event) => {
+                event.preventDefault();
+                if (passwordSpan.textContent === "••••••••") {
+                    passwordSpan.textContent = passwordSpan.dataset.password;
+                    showButton.textContent = "Hide";
+                } else {
+                    passwordSpan.textContent = "••••••••";
+                    showButton.textContent = "Show";
+                }
+            });
+
+            const deleteButton = document.createElement("button");
+            deleteButton.textContent = "Delete";
+            deleteButton.classList.add("delete-btn");
+            deleteButton.onclick = () => deletePassword(doc.id);
+
+            const siteInfo = document.createElement("div");
+            siteInfo.innerHTML = `
+              <strong>${data.site}</strong>
+              <div class="user-category">${data.category}</div>
+            `;
+            siteInfo.classList.add("user-details");
+
+            const actionButtons = document.createElement("div");
+            actionButtons.classList.add("action-buttons");
+            actionButtons.appendChild(passwordSpan);
+            actionButtons.appendChild(showButton);
+            actionButtons.appendChild(deleteButton);
+
+            listItem.appendChild(siteInfo);
+            listItem.appendChild(actionButtons);
+            passwordList.appendChild(listItem);
+        });
+      }
+  
+      // Add a new password
+      addPasswordForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+        const category = categoryInput.value.trim();
+        const user = auth.currentUser;
+  
+        if (user && username && password && category) {
+          try {
+            await addDoc(collection(db, "users", user.uid, "passwords"), {
+              site: username,
+              password: password,
+              category: category
+            });
+            await populateCategoryDropdown(user.uid); // Update categories
+            displayPasswords(user.uid); // Refresh the password list
+            addPasswordForm.reset(); // Reset the form fields
+          } catch (error) {
+            console.error("Error adding password:", error);
+          }
+        }
+      });
+  
+      // Populate the category dropdown
+      async function populateCategoryDropdown(userId) {
+        const querySnapshot = await getDocs(collection(db, "users", userId, "passwords"));
+        const categories = new Set(); // Use a set to store unique categories
+  
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.category) {
+            categories.add(data.category);
+          }
+        });
+  
+        categoryFilter.innerHTML = '<option value="">All</option>'; // Add default "All" option
+  
+        categories.forEach((category) => {
+          const option = document.createElement("option");
+          option.value = category;
+          option.textContent = category;
+          categoryFilter.appendChild(option);
+        });
+      }
+  
+      // Delete a password
+      window.deletePassword = async (passwordId) => {
+        const user = auth.currentUser;
+        if (user) {
+          try {
+            await deleteDoc(doc(db, "users", user.uid, "passwords", passwordId));
+            await populateCategoryDropdown(user.uid); // Update categories
+            displayPasswords(user.uid); // Refresh the password list
+          } catch (error) {
+            console.error("Error deleting password:", error);
+          }
+        }
+      };
+  
+      // Logout
+      logoutButton.addEventListener("click", () => {
+        signOut(auth)
+          .then(() => (window.location.href = "index.html")) // Redirect to login page
+          .catch((error) => console.error("Error signing out:", error));
+      });
+  
+      // Filter passwords by category
+      categoryFilter.addEventListener("change", () => {
+        const filterCategory = categoryFilter.value;
+        const user = auth.currentUser;
+        if (user) {
+          displayPasswords(user.uid, filterCategory);
+        }
+      });
+    });
+  </script>  
+  
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #f4f7f6;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 600px;
+      padding: 0 15px;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-top: 20px;
+      font-size: 1.8rem;
+    }
+
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      margin: 10px 0;
+      cursor: pointer;
+      font-size: 16px;
+      border-radius: 5px;
+      transition: background-color 0.3s;
+      width: 100%;
+      max-width: 300px;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    form button {
+      background-color: #28a745;
+    }
+
+    form button:hover {
+      background-color: #218838;
+    }
+
+    #logoutButton {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      width: auto;
+      max-width: none;
+      margin: 0;
+      padding: 8px 15px;
+      font-size: 14px;
+    }
+
+    form {
+      background-color: #fff;
+      padding: 20px;
+      margin: 20px auto;
+      width: 100%;
+      max-width: 500px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      border-radius: 5px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-sizing: border-box;
+    }
+
+    form label {
+      font-size: 16px;
+      margin-bottom: 5px;
+      display: block;
+      text-align: left;
+      width: 100%;
+    }
+
+    form input, form select {
+      width: 100%;
+      padding: 10px;
+      font-size: 16px;
+      margin-bottom: 15px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      box-sizing: border-box;
+    }
+
+    #passwordList {
+      list-style-type: none;
+      padding: 0;
+      width: 100%;
+      max-width: 600px;
+      margin: 20px auto;
+    }
+
+    .password-item {
+      background-color: #fff;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .user-details {
+      flex-grow: 1;
+    }
+
+    .action-buttons {
+      display: flex;
+      align-items: center;
+    }
+
+    .action-buttons > * {
+      margin-left: 10px;
+    }
+
+    .toggle-password {
+      color: #007bff;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .password-mask {
+      font-family: monospace;
+      color: #444;
+    }
+
+    .delete-btn {
+      background-color: #dc3545;
+      padding: 5px 10px;
+      font-size: 14px;
+      border-radius: 5px;
+    }
+
+    .delete-btn:hover {
+      background-color: #b22222; /* Dark red */
+    }
+
+    @media screen and (max-width: 600px) {
+      body {
+        font-size: 14px;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+      }
+
+      #logoutButton {
+        position: static;
+        margin: 10px auto;
+        width: 100%;
+        max-width: 300px;
+        order: 2;
+      }
+
+      .password-item {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .user-details {
+        margin-bottom: 10px;
+      }
+
+      .action-buttons {
+        flex-direction: column;
+      }
+
+      .action-buttons > * {
+        width: 100%;
+        margin: 5px 0;
+      }
+    }
+  </style>
+  
+</head>
+<body>
+  <h1>Password Manager</h1>
+  <button id="logoutButton">Logout</button>
+
+  <h3>Add New Password</h3>
+  <form id="addPasswordForm">
+    <label for="username">Username:</label>
+    <input type="text" id="username" required>
+    
+    <label for="password">Password:</label>
+    <input type="password" id="password" required>
+    
+    <label for="category">Category:</label>
+    <input type="text" id="category" required>
+    
+    <button type="submit">Add Password</button>
+  </form>
+
+  <h3>Filter Passwords by Category</h3>
+  <form id="filterCategoryForm">
+    <label for="categoryFilter">Select Category:</label>
+    <select id="categoryFilter">
+      <option value="">All</option>
+      <option value="Gmail">Gmail</option>
+      <option value="Facebook">Facebook</option>
+      <option value="Bank">Bank Accounts</option>
+      <option value="Others">Others</option>
+    </select>
+  </form>
+  <ul id="passwordList"></ul>
+</body>
+</html>

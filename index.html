@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login / Sign Up</title>
+  <style>
+    /* General Reset */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #f4f7fa;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 400px;
+      padding: 30px;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 24px;
+      color: #333;
+      margin-bottom: 20px;
+    }
+
+    label {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 5px;
+      display: block;
+      text-align: left;
+    }
+
+    input[type="email"],
+    input[type="password"] {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+      color: #333;
+      background-color: #f9f9f9;
+    }
+
+    input[type="email"]:focus,
+    input[type="password"]:focus {
+      border-color: #007bff;
+      background-color: #fff;
+      outline: none;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: #28a745; /* Green color */
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #218838; /* Darker green on hover */
+    }
+
+    button:active {
+      background-color: #1e7e34; /* Even darker green on active */
+    }
+
+    #messageBox {
+      margin-top: 20px;
+      font-weight: bold;
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 14px;
+      display: none; /* Hidden by default */
+    }
+
+    .success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+
+    .error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+
+    .toggle-link {
+      font-size: 14px;
+      color: #007bff;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .toggle-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyBZJyvFwZCmv6opZsuLobryb728A3G7CRg",
+      authDomain: "password-manager-23609.firebaseapp.com",
+      projectId: "password-manager-23609",
+      storageBucket: "password-manager-23609.firebasestorage.app",
+      messagingSenderId: "629079415018",
+      appId: "1:629079415018:web:a4c6ff54c6801822789f93",
+      measurementId: "G-T9CRGQ2Z39"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const emailInput = document.getElementById("email");
+      const passwordInput = document.getElementById("password");
+      const loginButton = document.getElementById("loginButton");
+      const signUpButton = document.getElementById("signUpButton");
+      const messageBox = document.getElementById("messageBox");
+
+      // Login functionality
+      loginButton.addEventListener('click', async function() {
+        const email = emailInput.value;
+        const password = passwordInput.value;
+
+        try {
+          await signInWithEmailAndPassword(auth, email, password);
+          // On successful login, redirect to the password manager page (page2.html)
+          window.location.href = "page2.html";
+        } catch (error) {
+          messageBox.textContent = "Error logging in: " + error.message;
+          messageBox.classList.remove("success");
+          messageBox.classList.add("error");
+          messageBox.style.display = "block";
+        }
+      });
+
+      // Sign-up functionality
+      signUpButton.addEventListener('click', async function() {
+        const email = emailInput.value;
+        const password = passwordInput.value;
+
+        try {
+          // Check if user already exists
+          const userDocRef = doc(db, "users", email);
+          const docSnapshot = await getDoc(userDocRef);
+
+          if (docSnapshot.exists()) {
+            messageBox.textContent = "User already exists! Please log in.";
+            messageBox.classList.remove("success");
+            messageBox.classList.add("error");
+            messageBox.style.display = "block";
+          } else {
+            // Create new user
+            await createUserWithEmailAndPassword(auth, email, password);
+            // Save user data to Firestore
+            await setDoc(doc(db, "users", email), { email: email });
+
+            messageBox.textContent = "User created successfully! Please log in.";
+            messageBox.classList.remove("error");
+            messageBox.classList.add("success");
+            messageBox.style.display = "block";
+          }
+        } catch (error) {
+          messageBox.textContent = "Error signing up: " + error.message;
+          messageBox.classList.remove("success");
+          messageBox.classList.add("error");
+          messageBox.style.display = "block";
+        }
+      });
+    });
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>Login / Sign Up</h1>
+
+    <div>
+      <label for="email">Email:</label>
+      <input type="email" id="email" required placeholder="Enter your email">
+    </div>
+
+    <div>
+      <label for="password">Password:</label>
+      <input type="password" id="password" required placeholder="Enter your password">
+    </div>
+
+    <button id="loginButton">Login</button>
+    <button id="signUpButton">Sign Up</button>
+
+    <!-- Message Box for feedback -->
+    <div id="messageBox"></div>
+
+    <div class="toggle-link" onclick="window.location.href='page2.html';">Go to Password Manager</div>
+  </div>
+</body>
+</html>
